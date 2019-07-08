@@ -340,11 +340,11 @@ class CLIPainter:
     curses.start_color()
     curses.init_pair(1, curses.COLOR_RED, curses.COLOR_WHITE)
     curses.init_pair(2, curses.COLOR_BLUE, curses.COLOR_WHITE)
-    curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_BLACK)
-    curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_BLACK)
-    curses.init_pair(5, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+    curses.init_pair(4, curses.COLOR_GREEN, curses.COLOR_BLACK)
+    curses.init_pair(5, curses.COLOR_CYAN, curses.COLOR_BLACK)
     curses.init_pair(6, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
-    curses.init_pair(7, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+
 
     self.robview = robview
     self.stdscr = stdscr
@@ -419,7 +419,7 @@ if __name__ == "__main__":
   parser.add_argument('-H', '--highlights', type=str, nargs='*', help='PCs need to be highlight')
   parser.add_argument('filepath', help='Path to the ROB file')
   args = parser.parse_args()
-  AVAILABLE_COLOR_PAIRS = 7
+  AVAILABLE_COLOR_PAIRS = 6
 
   if args.highlights:
     highlights = [(h, i % AVAILABLE_COLOR_PAIRS + 1) for i, h in enumerate(args.highlights)]
