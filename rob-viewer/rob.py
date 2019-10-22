@@ -8,29 +8,19 @@ import sys
 
 
 class ROBInst:
-  def __init__(self, pc, isLoad, isControl, prevInstsComplete=0, prevBrsResolved=0, prevInstsCommitted=0, prevBrsCommitted=0, readyToCommit=0, fault=0, squashed=0):
+  def __init__(self, pc, isLoad, isControl, isStore, *remain):
     self.pc = pc
     self.isLoad = isLoad
     self.isControl = isControl
-    self.prevInstsComplete = prevInstsComplete
-    self.prevBrsResolved = prevBrsResolved
-    self.prevInstsCommitted = prevInstsCommitted
-    self.prevBrsCommitted = prevBrsCommitted
-    self.readyToCommit = readyToCommit
-    self.fault = fault
-    self.squashed = squashed
+    self.isStore = isStore
+    self.remain = remain
 
   def __str__(self):
-    if self.isLoad and self.isControl:
-      type_flag = 'L C'
-    elif self.isLoad and not self.isControl:
-      type_flag = 'L  '
-    elif not self.isLoad and self.isControl:
-      type_flag = 'C  '
-    else:
-      type_flag = '   '
-    other_flags = [self.prevInstsComplete, self.prevBrsResolved, self.prevInstsCommitted, self.prevBrsCommitted, self.readyToCommit, self.fault, self.squashed]
-    other_flags = list(map(str, other_flags))
+    type_flag = ''
+    type_flag += 'L' if self.isLoad else ' '
+    type_flag += 'C' if self.isControl else ' '
+    type_flag += 'S' if self.isStore else ' '
+    other_flags = list(map(str, self.remain))
     return '{:<8} {} {}'.format(hex(self.pc), type_flag, ' '.join(other_flags))
 
   def __repr__(self):
@@ -345,7 +335,6 @@ class CLIPainter:
     curses.init_pair(5, curses.COLOR_CYAN, curses.COLOR_BLACK)
     curses.init_pair(6, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
 
-
     self.robview = robview
     self.stdscr = stdscr
     self.rob_wins = []
@@ -423,6 +412,8 @@ if __name__ == "__main__":
 
   if args.highlights:
     highlights = [(h, i % AVAILABLE_COLOR_PAIRS + 1) for i, h in enumerate(args.highlights)]
+  else:
+    highlights = None
 
   robview = ROBViewer(args.filepath)
   curses.wrapper(CLIPainter, robview, highlights=highlights, cols=args.cols)
