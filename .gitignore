@@ -210,5 +210,5 @@ dmypy.json
 *.out
 *.app
 # IDEs
-/.vscode/
-/.idea/
+.vscode/
+.idea/
