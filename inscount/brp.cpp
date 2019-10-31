@@ -1,4 +1,5 @@
 #include <iostream>
+#include <string>
 #include <cstdio>
 #include <cstdint>
 #include <unordered_map>
@@ -28,6 +29,10 @@ int CUR_ID = -1;
 
 KNOB<string> KnobInputFile(KNOB_MODE_WRITEONCE, "pintool",
               "b", "break.txt", "specify input file name");
+
+KNOB<string> KnobRunDir(KNOB_MODE_WRITEONCE, "pintool",
+              "r", ".",
+              "run directory of the application, this is for saving intermidiate files. AVOID conflicts!!!");
 
 KNOB<UINT32> KnobTimeout(KNOB_MODE_WRITEONCE, "pintool",
     "timeout", "0",
@@ -75,7 +80,8 @@ void Instruction(INS ins, void *v) {
 
 void load_breakpoints() {
   // load break.txt
-  ifstream infile(KnobInputFile.Value().c_str());
+  string inputFilePath = KnobRunDir.Value() + "/" + KnobInputFile.Value();
+  ifstream infile(inputFilePath.c_str());
   if (infile.is_open()) {
     Addr pc; uint64_t cnt; size_t brkID;
     while (infile >> brkID >> hex >> pc >> dec >> cnt) {
@@ -121,6 +127,9 @@ void Fini(INT32 code, void *v) {
     }
     cerr << flush;
   }
+
+  string infoFilePath = KnobRunDir.Value() + "/" + MSGFILE;
+  remove(infoFilePath.c_str());
 }
 
 INT32 Usage() {
@@ -153,7 +162,8 @@ void ConnectDebugger() {
        << ZINFO << " target remote :" << dec << info._tcpServer._tcpPort << "\n";
 
   ofstream outfile;
-  outfile.open(PORTFILE, ios::out);
+  string portFilePath = KnobRunDir.Value() + "/" + PORTFILE;
+  outfile.open(portFilePath.c_str(), ios::out);
   if (outfile.is_open()) {
     outfile << "{"
             << "\"port\": " << info._tcpServer._tcpPort
@@ -168,8 +178,8 @@ void ConnectDebugger() {
   }
 
   // start gdb server
-  if (PIN_WaitForDebuggerToConnect(1000*KnobTimeout.Value())) {
-    remove(PORTFILE); // delete port file
+  if (PIN_WaitForDebuggerToConnect(1000 * KnobTimeout.Value())) {
+    remove(portFilePath.c_str()); // delete port file
     return;
   }
 
@@ -192,8 +202,10 @@ void DoBreakpoint(const CONTEXT *ctxt, THREADID tid) {
          << ZINFO << "fsBase: "   << fsBase   << endl
          << ZINFO << "fs: "       << fs       << endl
          << dec   << flush;
+
+    string infoFilePath = KnobRunDir.Value() + "/" + MSGFILE;
     ofstream outfile;
-    outfile.open(MSGFILE, ios::out);
+    outfile.open(infoFilePath.c_str(), ios::out);
     if (outfile.is_open()) {
       outfile << "{"
               << "\"brkID\": " << CUR_ID << ", "
@@ -211,5 +223,5 @@ void DoBreakpoint(const CONTEXT *ctxt, THREADID tid) {
     }
 
     PIN_ApplicationBreakpoint(ctxt, tid, FALSE, "TickTok!");
-    remove(MSGFILE);
+    remove(infoFilePath.c_str());
 }
