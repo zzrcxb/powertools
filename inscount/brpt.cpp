@@ -8,9 +8,7 @@
 #include "pin.H"
 #include "utils.h"
 #include <sys/types.h>
-#include <unistd.h>    // for sbrk
-#include <asm/prctl.h> // for arch_prctl
-#include <sys/prctl.h> // for arch_prctl
+#include <unistd.h>    // for sbrk and getpid
 
 
 #define MSGFILE ".pininfo"
