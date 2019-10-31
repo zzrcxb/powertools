@@ -24,19 +24,23 @@ uint64_t SKIP, INTERVAL;
 vector<vector<Record>> bbv_data;
 vector<Record> brp_data;
 
-KNOB<string> KnobOutputBBFile(KNOB_MODE_WRITEONCE, "pintool",
+KNOB<string> KnobOutputBBVFile(KNOB_MODE_WRITEONCE, "pintool",
               "bbv", "out.bb", "specify output file name");
 
-KNOB<string> KnobOutputBRFile(KNOB_MODE_WRITEONCE, "pintool",
-              "brp", "out.br", "specify breakpoints file name");
+KNOB<string> KnobOutputBRKFile(KNOB_MODE_WRITEONCE, "pintool",
+              "brk", "out.brk", "specify breakpoints file name");
 
-KNOB<string> KnobInterval(KNOB_MODE_WRITEONCE, "pintool",
-              "i", "50", "interval for each program slice (unit: M instructions)");
+KNOB<string> KnobRunDir(KNOB_MODE_WRITEONCE, "pintool",
+              "r", ".",
+              "run directory of the application, this is for saving intermidiate files. AVOID conflicts!!!");
 
-KNOB<string> KnobSkip(KNOB_MODE_WRITEONCE, "pintool",
+KNOB<UINT64> KnobInterval(KNOB_MODE_WRITEONCE, "pintool",
+              "i", "50", "interval for each program slice (unit: M instructions)!");
+
+KNOB<UINT64> KnobSkip(KNOB_MODE_WRITEONCE, "pintool",
               "s", "0", "skip first <s> instructions");
 
-ofstream bbv_out, br_out;
+ofstream bbv_out, brk_out;
 
 
 inline void dump(Addr pc) {
@@ -87,8 +91,7 @@ void BBTrace(TRACE trace, void *v) {
 
 INT32 Usage() {
   PIN_ERROR("This Pintool generate BBV for simpoints and generate conditional breakpoints for each slice" +
-            KNOB_BASE::StringKnobSummary() +
-            "\n"
+            KNOB_BASE::StringKnobSummary() + "\n"
   );
   return -1;
 }
@@ -106,11 +109,11 @@ void Fini(INT32 code, void *v) {
   }
 
   for (auto brp : brp_data) {
-    br_out << hex << brp.first << " " << dec << brp.second << endl;
+    brk_out << hex << brp.first << " " << dec << brp.second << endl;
   }
 
   bbv_out.close();
-  br_out.close();
+  brk_out.close();
 }
 
 
@@ -119,13 +122,15 @@ int main(int argc, char **argv) {
   if (PIN_Init(argc, argv))
     return Usage();
 
-  SKIP = atoi(KnobSkip.Value().c_str());
-  INTERVAL = atoi(KnobInterval.Value().c_str()) * 1000000;
+  SKIP = KnobSkip.Value();
+  INTERVAL = KnobInterval.Value() * 1000000;
 
-  bbv_out.open(KnobOutputBBFile.Value().c_str(), ios::out);
-  br_out.open(KnobOutputBRFile.Value().c_str(), ios::out);
-  if (!bbv_out.is_open() || !br_out.is_open()) {
-    cerr << ZERROR << "Faield to open output files" << endl;
+  string bbv_out_path = KnobRunDir.Value() + "/" + KnobOutputBBVFile.Value();
+  string brk_out_path = KnobRunDir.Value() + "/" + KnobOutputBRKFile.Value();
+  bbv_out.open(bbv_out_path.c_str(), ios::out);
+  brk_out.open(brk_out_path.c_str(), ios::out);
+  if (!bbv_out.is_open() || !brk_out.is_open()) {
+    cerr << ZERROR << "Failed to open output files" << endl;
     exit(2);
   }
 
