@@ -48,11 +48,12 @@ ADDRINT update_counter(ADDRINT addr) {
   inscount[addr] += 1;
   auto record = Breakpoint(addr, inscount[addr]);
   if (IN_MAP(record, brkIDMap)) {
-    CUR_ID = inscount[addr];
+    CUR_ID = brkIDMap[record];
     cerr << ZINFO
          << "Triggered breakpoint #" << CUR_ID << "; "
          << "PC: 0x" << hex << addr
-         << ", CNT: " << dec << inscount[addr] << endl;
+         << ", CNT: " << dec << inscount[addr]
+         << ", PID: " << getpid() << endl;
     if (visited[record]) {
       cerr << ZWARN
            << "Trying to re-visit a breakpoint, something is wrong! Breakpoint PC: "
@@ -117,10 +118,10 @@ void Fini(INT32 code, void *v) {
     cerr << ZWARN
          << "Failed to reached some of breakpoints, please double check your break.txt file!" << endl
          << "List of unreached breakpints:" << endl
-         << "    PC    ,        CNT        " << endl;
+         << "PC, CNT" << endl;
     for (auto p : visited) {
       if (!p.second) {
-        cerr << hex << p.first.first << ", " << dec << p.first.second << endl;
+        cerr << "0x" << hex << p.first.first << ", " << dec << p.first.second << endl;
       }
     }
     cerr << flush;
@@ -193,13 +194,12 @@ void DoBreakpoint(const CONTEXT *ctxt, THREADID tid) {
     // save necessary information
     auto brkPoint = (uint64_t)sbrk(0);
     auto fsBase = PIN_GetContextReg(ctxt, REG_SEG_FS_BASE);
-    auto fs = PIN_GetContextReg(ctxt, REG_SEG_FS);
-    cerr << ZINFO << "brkID: #"   << CUR_ID   << endl
-         << ZINFO << "pid: "      << getpid() << endl << hex
-         << ZINFO << "brkPoint: " << brkPoint << endl
-         << ZINFO << "fsBase: "   << fsBase   << endl
-         << ZINFO << "fs: "       << fs       << endl
-         << dec   << flush;
+    cerr << ZINFO
+         << "brkID: #" << CUR_ID
+         << ", pid: " << getpid() << hex
+         << ", brkPoint: 0x" << brkPoint
+         << ", fsBase: 0x" << fsBase
+         << dec << flush;
 
     string infoFilePath = KnobRunDir.Value() + "/" + MSGFILE;
     ofstream outfile;
@@ -222,4 +222,13 @@ void DoBreakpoint(const CONTEXT *ctxt, THREADID tid) {
 
     PIN_ApplicationBreakpoint(ctxt, tid, FALSE, "TickTok!");
     remove(infoFilePath.c_str());
+    auto allVisited = true;
+    for (auto p : visited) {
+      // check completenesss of the break.txt
+      if (!p.second)
+        allVisited = false;
+    }
+    if (allVisited) {
+        exit(0);
+    }
 }
