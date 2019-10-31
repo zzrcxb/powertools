@@ -1,32 +1,43 @@
 import re
 import os
+import sys
 import json
-import argparse
+import shutil
+import logging
 import resource
 import datetime
 import subprocess
+
+from pathlib import Path
 from multiprocessing import cpu_count, Pool, Lock, Process
 
-import sys
-WORK_DIR = os.path.dirname(__file__)
-sys.path.append(WORK_DIR)
+WORK_DIR = str(Path(__file__).parent)
+sys.path.append(str(Path(__file__).parent))
 sys.path.append('/home/neil/.virtualenvs/lapi/lib/python3.7/site-packages')
 print(sys.path)
 
-from pathlib import Path
 from CheckpointConvert import convert_checkpoint
 from CheckpointTemplate import MemoryMapping, RegisterValues, fill_checkpoint_template
 from Checkpoints import GDBCheckpoint
 
 
-def get_mem_map():
-  pass
+try:
+    import gdb  # pylint: disable=import-error
+except ImportError:
+    print('This is a GDB Python script that cannot be directly invoked.', file=sys.stderr)
+    exit(1)
 
 
-def get_core_dump():
-  pass
-
-
+class CONFIGS:
+    PORT_INFO_FILENAME = '.portinfo'
+    PIN_INFO_FILENAME  = '.pininfo'
+    PMEM_FILENAME      = 'system.physmem.store0.pmem'
+    M5CPT_FILENAME     = 'm5.cpt'
+    MMAP_FILENAME      = 'mapping.json'
+    COREDUMP_FILENAME  = 'pinGDB.core'
+    CHECKSUM_FILENAME  = '.checksum'
+    PINTOOL_PLUGIN     = 'brkpt.so'
+    DEFAULT_PIN_VER    = 'pin-3.11'
 
 
 class GDBEngine:
@@ -39,29 +50,40 @@ class GDBEngine:
     BAD_MEM_REGIONS = ['[vvar]', '[vsyscall]']
 
     def __init__(self,
+                 cmd:list,
                  checkpoint_root_dir,
                  compress_core_files,
                  convert_checkpoints,
-                 pid, remote_port, args):
+                 run_dir, remote_port):
+        assert(len(cmd) > 0)
+        self.binary = run_dir / cmd[0]
+        self.args = cmd[1:]
+
+        self._pin_info = run_dir / CONFIGS.PIN_INFO_FILENAME
+        self._port_info = run_dir / CONFIGS.PORT_INFO_FILENAME
+
+        if not self._port_info.exists():
+            logging.error('Remote GDB port information not found, please check whether the pintool is running')
+        with self._port_info.open() as f:
+            self._rgdb_port = json.load(f)['port']
+
         from lapidary.checkpoint.GDBShell import GDBShell
-        import gdb  # pylint: disable=import-error
         self.shell = GDBShell(self)
         self.chk_num = 0
         self.compress_core_files = compress_core_files
         self.compress_processes  = {}
         self.convert_checkpoints = convert_checkpoints
         self.convert_processes   = {}
-        self.pid = pid
 
         # Otherwise long arg strings get mutilated with '...'
-        gdb.execute('target remote :{}'.format(remote_port))
+        gdb.execute('target remote :{}'.format(self._rgdb_port))
         gdb.execute('set print elements 0')
         gdb.execute('set follow-fork-mode child')
         # args = (gdb.execute('print $args', to_string=True)).split(' ')[2:]
         # args = [ x.replace('"','').replace(os.linesep, '') for x in args ]
-        assert len(args) > 0
-        self.binary = args[0]
-        self.args = ' '.join(args[1:])
+        # assert len(args) > 0
+        # self.binary = args[0]
+        # self.args = ' '.join(args[1:])
         if checkpoint_root_dir is not None:
             self.chk_out_dir = Path(checkpoint_root_dir) / \
                 '{}_gdb_checkpoints'.format(Path(self.binary).name)
@@ -69,43 +91,43 @@ class GDBEngine:
             self.chk_out_dir = Path( WORK_DIR ) / Path('{}_gdb_checkpoints'.format(Path(self.binary).name))
         gdb.execute('set print elements 200')
 
+        self.run_dir = run_dir
+        self.msg_info = run_dir / '.pininfo'
+        with self.msg_info.open() as f:
+            info = json.load(f)
+        self.pid = info['pid']
+
 
     def _get_virtual_addresses(self):
-        import gdb  # pylint: disable=import-error
-        vaddrs = [0]
-        sizes = [resource.getpagesize()]
+        vaddrs  = [0]
+        sizes   = [resource.getpagesize()]
         offsets = [0]
-        names = ['null']
+        names   = ['null']
         p = subprocess.Popen(['gdb', self.binary, '--batch', '-ex', 'info proc mappings {}'.format(self.pid)], stdout=subprocess.PIPE)
         raw_mappings = p.communicate()[0].decode('utf8')
-        # raw_mappings = gdb.execute('info proc mappings', to_string=True)
-        print(raw_mappings)
 
         for entry in raw_mappings.split(os.linesep):
             matches = self.VADDR_REGEX.match(entry.strip())
             if matches:
-                if 'brp.so' not in str(matches.group(4)).strip() and '/home/neil/pin-3.11' not in str(matches.group(4)).strip():
+                if 'brpt.so' not in str(matches.group(4)).strip() and '/home/neil/pin-3.11' not in str(matches.group(4)).strip():
                     vaddrs   += [int(matches.group(1), 16)]
                     sizes    += [int(matches.group(2), 16)]
                     offsets  += [int(matches.group(3), 16)]
                     names    += [str(matches.group(4)).strip()]
 
-        return vaddrs, sizes, offsets, names
-
-    def _get_memory_regions(self):
-        vaddrs, sizes, offsets, names = self._get_virtual_addresses()
         paddrs = []
         flags = []
         next_paddr = 0
-        for vaddr, size in zip(vaddrs, sizes):
+        for _, size in zip(vaddrs, sizes):
             paddrs += [next_paddr]
             flags += [0]
             next_paddr += size
 
         return paddrs, vaddrs, sizes, offsets, flags, names
 
+
     def _create_mappings(self, filter_bad_regions=False, expand=False):
-        paddrs, vaddrs, sizes, offsets,flags, names = self._get_memory_regions()
+        paddrs, vaddrs, sizes, offsets,flags, names = self._get_virtual_addresses()
         assert len(paddrs) == len(vaddrs)
         assert len(paddrs) == len(sizes)
         assert len(paddrs) == len(flags)
@@ -114,12 +136,7 @@ class GDBEngine:
         index = 0
         pgsize = resource.getpagesize()
         for p, v, s, o, f, name in zip(paddrs, vaddrs, sizes, offsets, flags, names):
-            # if filter_bad_regions and name in GDBEngine.BAD_MEM_REGIONS:
-            #     print('Skipping region "{}" (v{}->v{}, p{}->p{})'.format(name,
-            #       hex(v), hex(v + s), hex(p), hex(p + s)))
-            #     continue
             if expand:
-                # print( "Expanding v = 0x%x" % (v) )
                 for off in range(0, s, pgsize):
                     paddr = p + off if p != 0 else 0
                     vaddr = v + off
@@ -128,9 +145,7 @@ class GDBEngine:
                         index, paddr, vaddr, pgsize, offset, f, name)
             else:
                 mappings[v] = MemoryMapping(index, p, v, s, o, f, name)
-
             index += 1
-
         return mappings
 
 
@@ -143,15 +158,10 @@ class GDBEngine:
         return proc
 
     def _dump_core_to_file(self, file_path):
-        import gdb  # pylint: disable=import-error
         gdb.execute('set use-coredump-filter off')
         gdb.execute('set dump-excluded-mappings off')
         gdb.execute('gcore {}'.format(str(file_path)))
-        if self.compress_core_files:
-            print('Creating gzip process for {}'.format(str(file_path)))
-            gzip_proc = subprocess.Popen(['gzip', '-f', str(file_path)])
-            self.compress_processes[file_path.parent] = gzip_proc
-        elif self.convert_checkpoints:
+        if self.convert_checkpoints:
             print('Creating convert process for {}'.format(str(file_path.parent)))
             convert_proc = GDBEngine._create_convert_process(file_path.parent)
             self.convert_processes[file_path.parent] = convert_proc
@@ -173,7 +183,21 @@ class GDBEngine:
         return 18446744073692774400
 
     def _create_gem5_checkpoint(self, debug_mode):
-        chk_loc = self.chk_out_dir / '{}_check.cpt'.format(self.chk_num)
+        with self._pin_info.open() as f:
+            pin_info = json.load(f)
+        brk_ID    = pin_info['brkID']
+        ckpt_name = 'cpt.None.SIMP-{}'.format(brk_ID)
+        pid       = pin_info['pid']
+        brk_value = pin_info['brkPoint']
+        fs_base   = pin_info['fsBase']
+        ckpt_dir  = self.chk_out_dir / ckpt_name
+        pmem_path     = ckpt_dir / CONFIGS.PMEM_FILENAME
+        m5cpt_path    = ckpt_dir / CONFIGS.M5CPT_FILENAME
+        mmap_path     = ckpt_dir / CONFIGS.MMAP_FILENAME
+        coredump_path = ckpt_dir / CONFIGS.COREDUMP_FILENAME
+
+
+        chk_loc = ckpt_dir
         if chk_loc.exists():
             print('Warning: {} already exists, overriding.'.format(str(chk_loc)))
         else:
@@ -184,8 +208,6 @@ class GDBEngine:
         template_mappings = self._create_mappings(True, expand=True)
         regs = RegisterValues(self.fs_base)
 
-        total_mem_size = self._calculate_memory_size(template_mappings)
-        print(total_mem_size)
         total_mem_size = 4294967296
 
         file_mappings = self._create_mappings(True)
@@ -194,7 +216,7 @@ class GDBEngine:
         assert len(stack_mapping) == 1
         stack_mapping = stack_mapping[0]
 
-        brk_value = self._get_brk_value()
+        brk_value = self._get_brk_value(self._pin_info)
         mmap_end_value = self.get_mmap_end()
 
         fill_checkpoint_template(
@@ -230,74 +252,13 @@ class GDBEngine:
         return True
 
     @staticmethod
-    def _get_brk_value():
-        import struct, gdb  # pylint: disable=import-error
-        return 7368704
-        lang = gdb.execute('show language', to_string=True).split()[-1].split('"')[0]
-        gdb.execute('set language c')
+    def _get_brk_value(pin_info):
+        with pin_info.open() as f:
+            return json.load(f)['brkPoint']
 
-        brk_file = Path('/tmp/sbrk.txt' )
-        if os.path.exists( brk_file ):
-            os.remove( brk_file )
-
-        gdb.execute('compile file -raw get_brk.c') # % WORK_DIR )
-        brk = 0
-        print( "#"* 20 + "cwd = %s" % os.getcwd() )
-        try:
-            with brk_file.open('rb') as f:
-                data    = f.read()[:8]
-                print(data)
-                print(struct.unpack('Q', data))
-                brk = struct.unpack('Q', data)[0]
-        except:
-            pass
-        finally:
-            brk_file.unlink()
-        # gdb.execute('set language {}'.format(lang))
-        print('Found brk: {} ({})'.format(brk, hex(brk)))
-        return brk
-
-
-
-    @staticmethod
-    def _get_fs_base():
-        import struct, gdb  # pylint: disable=import-error
-        lang = gdb.execute('show language', to_string=True).split()[-1].split('"')[0]
-        gdb.execute('set language c')
-        gdb.execute('compile file -raw %s/get_fs_base.c' % WORK_DIR )
-        fs_base = 0
-        fs_base_file = Path('fs_base.txt')
-        try:
-            with fs_base_file.open('rb') as f:
-                data    = f.read()[:8]
-                print('fs_base_data:', data)
-                print(struct.unpack('Q', data))
-                fs_base = struct.unpack('Q', data)[0]
-        except:
-            pass
-        finally:
-            fs_base_file.unlink()
-        gdb.execute('set language {}'.format(lang))
-        print('Found FS BASE: {} ({})'.format(fs_base, hex(fs_base)))
-        return fs_base
-
-    def _run_base(self, debug_mode):
-        import gdb  # pylint: disable=import-error
-        print(self.binary)
-        return 7227520
-        gdb.execute('set auto-load safe-path /')
-        gdb.execute('exec-file {}'.format(self.binary))
-        gdb.execute('file {}'.format(self.binary))
-
-        gdb.execute('break main')
-        print('Running with args: "{}"'.format(self.args))
-
-        gdb.execute('run {}'.format(self.args))
-        print('...', self.args)
-        self.fs_base = self._get_fs_base()
-        if debug_mode:
-            import IPython
-            IPython.embed()
+    def _run_base(self, pin_info):
+        with pin_info.open() as f:
+            return json.load(f)['fsBase']
 
     def _poll_background_processes(self, wait=False):
         timeout = 0.001
@@ -328,7 +289,7 @@ class GDBEngine:
             self.convert_processes.pop(key)
 
     def try_create_checkpoint(self, debug_mode=False):
-        self._poll_background_processes()
+        # self._poll_background_processes()
 
         if self._can_create_valid_checkpoint():
             print('Creating checkpoint #{}'.format(self.chk_num))
@@ -336,7 +297,11 @@ class GDBEngine:
 
 
 if __name__ == "__main__":
-  import gdb  # pylint: disable=import-error
-  engine = GDBEngine('/home/neil/test', False, True, 68498, 35689, ['./libquantum', '1397', '8'])
-  engine.fs_base = engine._run_base(False)
-  engine.try_create_checkpoint()
+    run_dir = Path('/home/neil/Simpoint3.2/bin')
+    ckpt_dir = Path('/home/neil/test/libquantum')
+
+    with open(run_dir / '.portinfo') as f:
+        gdb_port = json.load(f)['port']
+    engine = GDBEngine(['./libquantum', '1397', '8'], '/home/neil/test', False, True, run_dir, gdb_port)
+    engine.fs_base = engine._run_base(run_dir / CONFIGS.PIN_INFO_FILENAME)
+    engine.try_create_checkpoint()
