@@ -201,6 +201,13 @@ void DoBreakpoint(const CONTEXT *ctxt, THREADID tid) {
          << ", fsBase: 0x" << fsBase
          << dec << endl << flush;
 
+    auto allVisited = true;
+    for (auto p : visited) {
+      // check completenesss of the break.txt
+      if (!p.second)
+        allVisited = false;
+    }
+
     string infoFilePath = KnobRunDir.Value() + "/" + MSGFILE;
     ofstream outfile;
     outfile.open(infoFilePath.c_str(), ios::out);
@@ -209,7 +216,8 @@ void DoBreakpoint(const CONTEXT *ctxt, THREADID tid) {
               << "\"brkID\": " << CUR_ID << ", "
               << "\"pid\": " << getpid() << ", "
               << "\"brkPoint\": " << brkPoint << ", "
-              << "\"fsBase\": " << fsBase
+              << "\"fsBase\": " << fsBase << ", "
+              << "\"allVisited\": " << allVisited
               << "}" << endl << flush;
       outfile.close();
     }
@@ -221,14 +229,4 @@ void DoBreakpoint(const CONTEXT *ctxt, THREADID tid) {
     }
 
     PIN_ApplicationBreakpoint(ctxt, tid, FALSE, "TickTok!");
-    remove(infoFilePath.c_str());
-    auto allVisited = true;
-    for (auto p : visited) {
-      // check completenesss of the break.txt
-      if (!p.second)
-        allVisited = false;
-    }
-    if (allVisited) {
-        exit(0);
-    }
 }

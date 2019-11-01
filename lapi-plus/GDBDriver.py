@@ -65,6 +65,7 @@ class GDBEngine:
         self._compress_ckpt = compress_ckpt
         self.mem_size = mem_size
         self._repo = git.Repo(search_parent_directories=True)
+        self._preserve_intermediate = preserve_intermediate
 
         if self._repo.is_dirty():
             logging.warning('Repo is dirty! Are you developping or running final experiments?')
@@ -87,7 +88,8 @@ class GDBEngine:
         pid       = pin_info['pid']
         brk_value = pin_info['brkPoint']
         fs_base   = pin_info['fsBase']
-        ckpt_dir  = self._ckpt_prefix / ckpt_name
+        all_visited = pin_info['allVisited']
+        ckpt_dir    = self._ckpt_prefix / ckpt_name
         pmem_path     = ckpt_dir / CONFIGS.PMEM_FILENAME
         m5cpt_path    = ckpt_dir / CONFIGS.M5CPT_FILENAME
         mmap_path     = ckpt_dir / CONFIGS.MMAP_FILENAME
@@ -141,6 +143,15 @@ class GDBEngine:
         self._dump_core_to_file(coredump_path)
         self._dump_mappings_to_file(unexpanded_mmaps, self.mem_size, mmap_path)
         convert_checkpoint(GDBCheckpoint(ckpt_dir, CONFIGS), True, compress=self._compress_ckpt)
+
+        if not self._preserve_intermediate:
+            coredump_path.unlink()
+            mmap_path.unlink()
+
+        if all_visited:
+            logging.info('Every breakpoint has been reached, exiting...')
+            gdb.execute('q')
+        return True
 
     def _get_virtual_addresses(self, pid):
         vaddrs  = [0]
@@ -226,16 +237,22 @@ class LogFormatter(logging.Formatter):
         logging.Formatter.__init__(self, style=style)
 
     def format(self, record):
-        from colorama import Fore
-        stdout_template = '{levelname}' + Fore.RESET + '] {threadName}: ' + '{message}'
-        stdout_head = '[%s'
+        from colorama import Fore, Back, Style
+        stdout_template = ' {threadName}: ' + '{message}'
+        stdout_head = '[%s{levelname}%s]'
+
+        debug_head = stdout_head % (Fore.LIGHTBLUE_EX, Fore.RESET)
+        info_head  = stdout_head % (Fore.GREEN, Fore.RESET)
+        warn_head  = stdout_head % (Fore.YELLOW + Style.BRIGHT, Fore.RESET + Style.NORMAL)
+        error_head = stdout_head % (Fore.RED + Style.BRIGHT, Fore.RESET + Style.NORMAL)
+        criti_head = stdout_head % (Fore.RED + Style.BRIGHT + Back.WHITE, Fore.RESET + Style.NORMAL + Back.RESET)
 
         all_formats = {
-          logging.DEBUG: logging.StrFormatStyle(stdout_head % Fore.LIGHTBLUE_EX + stdout_template),
-          logging.INFO: logging.StrFormatStyle(stdout_head % Fore.GREEN + stdout_template),
-          logging.WARNING: logging.StrFormatStyle(stdout_head % Fore.LIGHTYELLOW_EX + stdout_template),
-          logging.ERROR: logging.StrFormatStyle(stdout_head % Fore.LIGHTRED_EX + stdout_template),
-          logging.CRITICAL: logging.StrFormatStyle(stdout_head % Fore.RED + stdout_template)
+          logging.DEBUG   : logging.StrFormatStyle(debug_head + stdout_template),
+          logging.INFO    : logging.StrFormatStyle(info_head  + stdout_template),
+          logging.WARNING : logging.StrFormatStyle(warn_head  + stdout_template),
+          logging.ERROR   : logging.StrFormatStyle(error_head + stdout_template),
+          logging.CRITICAL: logging.StrFormatStyle(criti_head + stdout_template)
         }
 
         self._style = all_formats.get(record.levelno, logging.StrFormatStyle(logging._STYLES['{'][1]))
