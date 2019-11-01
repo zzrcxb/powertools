@@ -56,8 +56,8 @@ inline void dump(Addr pc) {
     BBCounter[thepc] += thedelta;
     if (thedelta) {
       bbv_line.emplace_back(make_pair(nameTab[thepc], thedelta));
-      BBDelta[thepc] = 0;
     }
+    BBDelta[thepc] = 0;
   }
   bbv_data.emplace_back(bbv_line);
   brp_data.emplace_back(make_pair(pc, BBCounter[pc]));
@@ -66,13 +66,7 @@ inline void dump(Addr pc) {
 
 void docount(Addr pc, USIZE size) {
   icounter += size;
-  if (IN_MAP(pc, BBDelta)) {
-    BBDelta[pc] += 1;
-  }
-  else {
-    cerr << ZERROR << "critical error, exiting..." << endl;
-    exit(1);
-  }
+  BBDelta[pc] += 1;
   if ((icounter - oldicounter) > INTERVAL && icounter > SKIP)
     dump(pc);
 }
@@ -90,9 +84,7 @@ void BBTrace(TRACE trace, void *v) {
 
 
 INT32 Usage() {
-  PIN_ERROR("This Pintool generate BBV for simpoints and generate conditional breakpoints for each slice" +
-            KNOB_BASE::StringKnobSummary() + "\n"
-  );
+  PIN_ERROR("This Pintool generate BBV for simpoints and generate conditional breakpoints for each slice" + KNOB_BASE::StringKnobSummary() + "\n");
   return -1;
 }
 
