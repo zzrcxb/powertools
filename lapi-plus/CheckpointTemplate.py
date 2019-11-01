@@ -1,4 +1,6 @@
 from jinja2 import Template
+from pathlib import Path
+
 import os, resource
 import re
 
@@ -201,9 +203,8 @@ class RegisterValues:
         return reg_str.strip()
 
 WORK_DIR = os.path.dirname(__file__)
-def fill_checkpoint_template(template_file='%s/m5.cpt.template' % WORK_DIR,
-                             output_file='%s/check.cpt/m5.cpt' % WORK_DIR, **kwargs):
-    with open(template_file, 'r') as tf:
+def fill_checkpoint_template(output_file, **kwargs):
+    with open(Path(__file__).parent / './templates/m5.cpt.template', 'r') as tf:
         template = Template(tf.read())
         with open(output_file, 'w') as f:
             f.write(template.render(**kwargs))

@@ -5,19 +5,15 @@ from elftools.elf.elffile import ELFFile
 
 class GDBCheckpoint:
 
-    MAPPINGS_JSON = 'mappings.json'
-    GDB_CORE_FILE = 'gdb.core'
     GDB_GZIP_FILE = 'gdb.core.gz'
-    PMEM_FILE     = 'system.physmem.store0.pmem'
 
-    def __init__(self, checkpoint_directory):
-        assert isinstance(checkpoint_directory, Path)
+    def __init__(self, checkpoint_directory, configs):
         self.checkpoint_directory = checkpoint_directory
 
-        self.mappings_file = self.checkpoint_directory / self.MAPPINGS_JSON
-        self.gdb_core_file = self.checkpoint_directory / self.GDB_CORE_FILE
+        self.mappings_file = self.checkpoint_directory / configs.MMAP_FILENAME
+        self.gdb_core_file = self.checkpoint_directory / configs.COREDUMP_FILENAME
         self.gdb_gzip_file = self.checkpoint_directory / self.GDB_GZIP_FILE
-        self.pmem_file     = self.checkpoint_directory / self.PMEM_FILE
+        self.pmem_file     = self.checkpoint_directory / configs.PMEM_FILENAME
         self.mappings      = None
 
     def get_mappings(self):
