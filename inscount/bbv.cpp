@@ -32,7 +32,7 @@ KNOB<string> KnobOutputBRKFile(KNOB_MODE_WRITEONCE, "pintool",
 
 KNOB<string> KnobRunDir(KNOB_MODE_WRITEONCE, "pintool",
               "r", ".",
-              "run directory of the application, this is for saving intermidiate files. AVOID conflicts!!!");
+              "run directory of the application, this is for saving intermidiate files. PLEASE AVOID conflicts!!!");
 
 KNOB<UINT64> KnobInterval(KNOB_MODE_WRITEONCE, "pintool",
               "i", "50", "interval for each program slice (unit: M instructions)!");

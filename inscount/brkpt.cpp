@@ -30,11 +30,11 @@ KNOB<string> KnobInputFile(KNOB_MODE_WRITEONCE, "pintool",
 
 KNOB<string> KnobRunDir(KNOB_MODE_WRITEONCE, "pintool",
               "r", ".",
-              "run directory of the application, this is for saving intermidiate files. AVOID conflicts!!!");
+              "run directory of the application, this is for saving intermidiate files. PLEASE AVOID conflicts!!!");
 
 KNOB<UINT32> KnobTimeout(KNOB_MODE_WRITEONCE, "pintool",
     "timeout", "0",
-    "When using -stackbreak, wait for this many seconds for debugger to connect (zero means wait forever)");
+    "wait for this <timeout> seconds for debugger to connect (zero means wait forever)");
 
 
 void DoBreakpoint(const CONTEXT *, THREADID);
