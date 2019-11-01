@@ -199,7 +199,7 @@ void DoBreakpoint(const CONTEXT *ctxt, THREADID tid) {
          << ", pid: " << getpid() << hex
          << ", brkPoint: 0x" << brkPoint
          << ", fsBase: 0x" << fsBase
-         << dec << flush;
+         << dec << endl << flush;
 
     string infoFilePath = KnobRunDir.Value() + "/" + MSGFILE;
     ofstream outfile;
