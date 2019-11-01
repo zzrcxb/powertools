@@ -1,0 +1,5 @@
+{
+  "cmd": ["libquantum", "1397", "8"],
+  "ckpt-prefix": "/path/to/libquantum/checkpoint",
+  "run-dir": "/path/to/libquantum/run-dir"
+}
