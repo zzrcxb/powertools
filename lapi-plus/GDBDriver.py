@@ -64,7 +64,7 @@ class GDBEngine:
         self._ckpt_prefix = ckpt_prefix
         self._compress_ckpt = compress_ckpt
         self.mem_size = mem_size
-        self._repo = git.Repo(search_parent_directories=True)
+        self._repo = git.Repo(path=__file__, search_parent_directories=True)
         self._preserve_intermediate = preserve_intermediate
 
         if self._repo.is_dirty():

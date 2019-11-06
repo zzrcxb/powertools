@@ -129,6 +129,11 @@ void Fini(INT32 code, void *v) {
 
   string infoFilePath = KnobRunDir.Value() + "/" + MSGFILE;
   remove(infoFilePath.c_str());
+
+  if (allVisited)
+    exit(0);
+  else
+    exit(1);
 }
 
 INT32 Usage() {
@@ -225,7 +230,7 @@ void DoBreakpoint(const CONTEXT *ctxt, THREADID tid) {
       cerr << ZERROR
            << "Failed to pass the runtime information for further steps, exiting..."
            << endl << flush;
-      exit(1);
+      exit(0);
     }
 
     PIN_ApplicationBreakpoint(ctxt, tid, FALSE, "TickTok!");
