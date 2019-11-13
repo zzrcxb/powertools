@@ -1,11 +1,13 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include "pin.H"
+// #include "pin.H"
 
 
 #define IN_MAP(KEY, SET) (SET.find(KEY) != SET.end())
 #define IN_SET(KEY, SET) (SET.find(KEY) != SET.end())
+#define IN_MAPPTR(KEY, SET) (SET->find(KEY) != SET->end())
+#define IN_SETPTR(KEY, SET) (SET->find(KEY) != SET->end())
 
 #define BLACK    "\033[30m"
 #define RED      "\033[31m"
