@@ -36,30 +36,32 @@ class GDBCheckpointConverter:
             pmem_raw.truncate(self.mappings['mem_size'])
 
             # Check for shared object files
-            for vaddr, mapping_dict in self.mappings.items():
-                if vaddr == 0 or vaddr == 'mem_size':
-                    continue
+            # for vaddr, mapping_dict in self.mappings.items():
+            #     if vaddr == 0 or vaddr == 'mem_size':
+            #         continue
 
-                maybe_file = Path(mapping_dict['name'])
-                if maybe_file.exists() and maybe_file.is_file():
-                    for s in core_elf.iter_segments():
-                        if s['p_type'] != 'PT_LOAD':
-                            continue
-                        elf_start_vaddr = int(s['p_vaddr'])
-                        elf_max_vaddr = elf_start_vaddr + int(s['p_memsz'])
-                        if elf_start_vaddr <= vaddr and vaddr < elf_max_vaddr:
-                            continue
-                        else:
-                            with maybe_file.open('rb') as shared_object:
-                                offset = int(mapping_dict['offset'])
-                                size   = int(mapping_dict['size'])
-                                paddr  = int(mapping_dict['paddr'])
+            #     maybe_file = Path(mapping_dict['name'])
+                # print('maybe file: ', maybe_file)
+            #     if maybe_file.exists() and maybe_file.is_file():
+            #         for s in core_elf.iter_segments():
+                        # print('seg: ', s['p_type'])
+            #             if s['p_type'] != 'PT_LOAD':
+            #                 continue
+            #             elf_start_vaddr = int(s['p_vaddr'])
+            #             elf_max_vaddr = elf_start_vaddr + int(s['p_memsz'])
+            #             if elf_start_vaddr <= vaddr and vaddr < elf_max_vaddr:
+            #                 continue
+            #             else:
+            #                 with maybe_file.open('rb') as shared_object:
+            #                     offset = int(mapping_dict['offset'])
+            #                     size   = int(mapping_dict['size'])
+            #                     paddr  = int(mapping_dict['paddr'])
 
-                                shared_object.seek(offset, 0)
-                                pmem_raw.seek(paddr, 0)
+            #                     shared_object.seek(offset, 0)
+            #                     pmem_raw.seek(paddr, 0)
 
-                                buf = shared_object.read(size)
-                                pmem_raw.write(buf)
+            #                     buf = shared_object.read(size)
+            #                     pmem_raw.write(buf)
 
             # Load everything else
             for s in core_elf.iter_segments():

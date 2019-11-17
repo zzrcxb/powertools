@@ -204,7 +204,7 @@ class RegisterValues:
 
 WORK_DIR = os.path.dirname(__file__)
 def fill_checkpoint_template(output_file, **kwargs):
-    with open(Path(__file__).parent / './templates/m5.cpt.template', 'r') as tf:
+    with open(Path(__file__).parent / './templates/m5-2.cpt.template', 'r') as tf:
         template = Template(tf.read())
         with open(output_file, 'w') as f:
             f.write(template.render(**kwargs))
