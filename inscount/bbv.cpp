@@ -30,6 +30,9 @@ KNOB<string> KnobOutputBBVFile(KNOB_MODE_WRITEONCE, "pintool",
 KNOB<string> KnobOutputBRKFile(KNOB_MODE_WRITEONCE, "pintool",
               "brk", "out.brk", "specify breakpoints file name");
 
+KNOB<string> KnobOutputBBIDFile(KNOB_MODE_WRITEONCE, "pintool",
+              "bbid", "out.bbid", "specify basic block id file name");
+
 KNOB<string> KnobRunDir(KNOB_MODE_WRITEONCE, "pintool",
               "r", ".",
               "run directory of the application, this is for saving intermidiate files. PLEASE AVOID conflicts!!!");
@@ -40,7 +43,7 @@ KNOB<UINT64> KnobInterval(KNOB_MODE_WRITEONCE, "pintool",
 KNOB<UINT64> KnobSkip(KNOB_MODE_WRITEONCE, "pintool",
               "s", "0", "skip first <s> instructions");
 
-ofstream bbv_out, brk_out;
+ofstream bbv_out, brk_out, bbid_out;
 
 
 inline void dump(Addr pc) {
@@ -88,6 +91,7 @@ INT32 Usage() {
   return -1;
 }
 
+
 void Fini(INT32 code, void *v) {
   cerr << ZINFO << "Executed " << icounter << " instructions. Dumping results..." << endl;
   cerr << ZINFO << bbv_data.size() << " slices in total" << endl;
@@ -104,8 +108,16 @@ void Fini(INT32 code, void *v) {
     brk_out << hex << brp.first << " " << dec << brp.second << endl;
   }
 
+  for (auto p : nameTab) {
+    bbid_out << p.second << " 0x"
+             << hex
+             << p.first
+             << dec << endl;
+  }
+
   bbv_out.close();
   brk_out.close();
+  bbid_out.close();
 }
 
 
@@ -119,9 +131,13 @@ int main(int argc, char **argv) {
 
   string bbv_out_path = KnobRunDir.Value() + "/" + KnobOutputBBVFile.Value();
   string brk_out_path = KnobRunDir.Value() + "/" + KnobOutputBRKFile.Value();
+  string bbid_out_path = KnobRunDir.Value() + "/" + KnobOutputBBIDFile.Value();
+
   bbv_out.open(bbv_out_path.c_str(), ios::out);
   brk_out.open(brk_out_path.c_str(), ios::out);
-  if (!bbv_out.is_open() || !brk_out.is_open()) {
+  bbid_out.open(bbid_out_path.c_str(), ios::out);
+
+  if (!bbv_out.is_open() || !brk_out.is_open() || !bbid_out.is_open()) {
     cerr << ZERROR << "Failed to open output files" << endl;
     exit(2);
   }
@@ -130,7 +146,7 @@ int main(int argc, char **argv) {
        << "skip first: " << SKIP << " insn" << "\t"
        << "interval: " << INTERVAL << " insn" << endl;
 
-  TRACE_AddInstrumentFunction(BBTrace, 0);
+  TRACE_AddInstrumentFunction(BBTrace, nullptr);
   PIN_AddFiniFunction(Fini, nullptr);
   PIN_StartProgram();
 
