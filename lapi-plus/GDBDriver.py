@@ -47,7 +47,7 @@ class GDBEngine:
     BAD_MEM_REGIONS = ['[vvar]', '[vsyscall]']
 
     def __init__(self, cmd: list, ckpt_prefix: Path, run_dir: Path, compress_ckpt=True,
-                 mem_size=4*1024*1024*1024, preserve_intermediate=False):
+                 mem_size=4*1024*1024*1024, preserve_intermediate=True):
         assert(len(cmd) > 0)
         self.binary = run_dir / cmd[0]
         self.args = cmd[1:]
@@ -154,14 +154,15 @@ class GDBEngine:
         return True
 
     def _get_virtual_addresses(self, pid):
-        vaddrs  = [0]
-        sizes   = [resource.getpagesize()]
-        offsets = [0]
-        names   = ['null']
+        vaddrs  = []
+        sizes   = []
+        offsets = []
+        names   = []
         p = subprocess.Popen(['gdb', self.binary, '--batch', '-ex', 'info proc mappings {}'.format(pid)], stdout=subprocess.PIPE)
         raw_mappings = p.communicate()[0].decode('utf8')
 
         def mmap_filter(name):
+            return True
             return CONFIGS.PINTOOL_PLUGIN not in name and os.environ.get('PIN_ROOT', CONFIGS.DEFAULT_PIN_VER) not in name
 
         for entry in raw_mappings.split(os.linesep):
@@ -197,7 +198,7 @@ class GDBEngine:
         for p, v, s, o, f, name in zip(paddrs, vaddrs, sizes, offsets, flags, names):
             unexpanded[v] = MemoryMapping(index, p, v, s, o, f, name)
             for off in range(0, s, pgsize):
-                paddr = p + off if p != 0 else 0
+                paddr = p + off
                 vaddr = v + off
                 offset = o + off
                 mappings[vaddr] = MemoryMapping(
@@ -293,6 +294,9 @@ if __name__ == "__main__":
     cmd = options['cmd']
     ckpt_prefix = options['ckpt-prefix']
     run_dir = options['run-dir']
+
+    import resource
+    resource.setrlimit(resource.RLIMIT_CORE, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
 
     engine = GDBEngine(cmd, Path(ckpt_prefix), Path(run_dir))
     engine.run()
