@@ -49,13 +49,11 @@ private:
   vector<StackFrame*> cs;
 
   uint64_t get_count(Addr pc, size_t frame_id) {
-    // cerr << "@@@ " << frame_id << endl;
     auto *sf = cs[frame_id];
     if (IN_MAPPTR(pc, sf->second)) {
       return (*sf->second)[pc];
     }
     else {
-      // cerr << "###" << endl;
       cerr << ZERROR << "fatal error: "
            << "record 0x" << hex << pc
            << " doesn't exist in current stackframe 0x"
@@ -128,123 +126,6 @@ public:
 };
 
 
-// class CallStack {
-// private:
-//   vector<StackFrame> cs;
-
-//   uint64_t get_count(Addr addr, size_t frame_id) {
-//     auto counter = cs[frame_id].second;
-//     if (IN_MAPPTR(addr, counter)) {
-//       return (*counter)[addr];
-//     }
-//     else {
-//       cerr << ZERROR << "fatal error: "
-//            << "record 0x" << hex << addr
-//            << " doesn't exist in current stackframe 0x"
-//            << cur_func_addr() << dec
-//            << ". size=" << counter->size()
-//            << endl << flush;
-//       for (auto p : *counter) {
-//         cerr << hex << "0x" << p.first << ": " << dec << p.second << endl;
-//       }
-//       exit(2);
-//     }
-//   }
-
-// public:
-
-//   CallStack() {
-//     // push for the root counter
-//     cerr << "init..." << endl;
-//     CounterPtr cp = new Counter();
-//     cs.push_back(StackFrame(0x0, cp));
-//   }
-
-//   CounterPtr cur_counter() const {
-//     return cs.back().second;
-//   }
-
-//   Addr cur_func_addr() const {
-//     return cs.back().first;
-//   }
-
-//   void inc_count(Addr addr) {
-//     auto counter = cur_counter();
-//     cerr << &counter << " INC" << endl;
-//     if (IN_MAPPTR(addr, counter)) {
-//       (*counter)[addr]++;
-//     }
-//     else {
-//       counter->insert(Record(addr, 1));
-//     }
-//   }
-
-//   uint64_t get_count(Addr addr) {
-//     auto counter = cur_counter();
-//     if (IN_MAPPTR(addr, counter)) {
-//       return (*counter)[addr];
-//     }
-//     else {
-//       cerr << ZERROR << "fatal error: "
-//            << "record 0x" << hex << addr
-//            << " doesn't exist in current stackframe 0x"
-//            << cur_func_addr() << dec
-//            << endl << flush;
-//       exit(2);
-//     }
-//   }
-
-//   void dump () {
-//     cerr << ZDEBUG << endl;
-//     for (auto frame : cs) {
-//       cerr << "-----------------------------" << endl;
-//       cerr << hex << "---- 0x" << frame.first << "----" << endl;
-//       for (auto p : *(frame.second)) {
-//         cerr << "\t" << hex << "0x" << p.first << ": " << dec << p.second << endl;
-//       }
-//       cerr << endl;
-//     }
-//   }
-
-//   void on_call(Addr addr) {
-//     cerr << "call..." << endl;
-//     CounterPtr cp = new Counter();
-//     // cerr << &c << " CALL-------------" << endl;
-//     inc_count(addr);
-//     cs.push_back(StackFrame(addr, cp));
-//   }
-
-//   void on_ret(Addr addr) {
-//     if (addr != cur_func_addr()) {
-//       cerr << ZWARN << "try to return 0x" << hex << addr
-//            << ", which is not the top function of the stack 0x"
-//            << cur_func_addr()
-//            << endl << flush;
-//       return;
-//     }
-//     delete cs.back().second;
-//     cs.pop_back();
-//   }
-
-//   deque<Record> get_records(Addr addr) {
-//     deque<Record> results;
-
-//     // start from the top of the call stack
-//     auto cur_addr = addr;
-//     for (size_t index = cs.size() - 1; index >= 0; index--) {
-//       results.push_front(Record(cur_addr, get_count(cur_addr, index)));
-//       cur_addr = cs[index].first;
-//     }
-
-//     return results;
-//   }
-
-//   size_t size() {
-//     return cs.size();
-//   }
-// };
-
-
 ofstream bbv_out, brk_out;
 Counter BBCounter, BBDelta, nameTab;
 vector<vector<Record>> bbv_data;
@@ -260,8 +141,6 @@ void dump(Addr pc) {
   if (icounter % 1000000000 < 1000000) {
     cerr << "\r" << ZDEBUG << (icounter / 1000000000) << "X1B " << BBCounter.size() << " BBs";
   }
-
-  // CALLSTACK.dump();
 
   // ready to dump
   oldicounter = icounter;
@@ -305,9 +184,8 @@ void BBTrace(TRACE trace, void *v) {
 
 void Routine(RTN rtn, void *v) {
   auto pc = RTN_Address(rtn);
-  // cerr << "!!! " << RTN_Name(rtn).c_str() << " pc" << hex << pc << dec << endl;
   const char* name = RTN_Name(rtn).c_str();
-  if (!IN_SET(pc, WHITELIST) || name[0] == '.')
+  if (!IN_SET(pc, WHITELIST) || name[0] == '.' || !RTN_Valid(rtn))
     return;
 
   RTN_Open(rtn);
