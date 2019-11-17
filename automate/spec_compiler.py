@@ -147,7 +147,6 @@ class SPECBuilder:
 
     try:
       self.target_path = self.build_dir / self.target_name
-      print
       assert(self.target_path.exists())
       shutil.copy2(self.target_path, self.run_dir / self.target_name)
     except AssertionError as e:
@@ -185,7 +184,7 @@ class SPECBuilder:
       f.write(cmd)
 
     try:
-      shutil.copytree(self.run_dir, self.collection_dir / self.spec_name)
+      shutil.copytree(self.run_dir, self.collection_dir / self.spec_name.split('.')[1])
     except Exception:
-      logging.error('Failed to copy results for {}'.format(self.spec_name))
+      logging.error('Failed to copy results for "{}"'.format(self.spec_name.split('.')[1]))
       self.has_error = True
