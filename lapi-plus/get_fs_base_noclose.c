@@ -25,5 +25,4 @@ void _gdb_expr() {
     get_fs_base(&addr);
     int fd = open("fs_base.dat", O_CREAT | O_WRONLY, 0666);
     write(fd, &addr, BUFSIZ);
-    close(fd);
 }

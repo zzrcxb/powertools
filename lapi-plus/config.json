@@ -1,5 +1,5 @@
 {
-  "cmd": ["libquantum", "1397", "8"],
-  "ckpt-prefix": "/path/to/libquantum/checkpoint",
-  "run-dir": "/path/to/libquantum/run-dir"
+  "cmd": ["omnetpp_r", "-c", "General", "-r", "0"],
+  "ckpt-prefix": "/home/neil/SPEC17/gcc-iacoma/gcc-ref-ckpt/520.omnetpp_r",
+  "run-dir": "/home/neil/SPEC17/gcc-iacoma/gcc-ref/520.omnetpp_r"
 }

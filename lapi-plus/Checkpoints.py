@@ -32,12 +32,12 @@ class GDBCheckpoint:
         exists = self.mappings_file.exists() and \
             (self.gdb_core_file.exists or self.gdb_gzip_file.exists())
         valid = True
-        if exists:
-            try:
-                with self.get_core_file_handle() as core:
-                    core_elf = ELFFile(core)
-            except:
-                valid = False
+        # if exists:
+        #     try:
+        #         with self.get_core_file_handle() as core:
+        #             core_elf = ELFFile(core)
+        #     except:
+        #         valid = False
         return exists and valid
 
     def get_core_file_handle(self):

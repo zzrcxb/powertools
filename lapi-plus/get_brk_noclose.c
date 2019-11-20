@@ -18,5 +18,4 @@ void _gdb_expr() {
     addr = (uint64_t)sbrk(0);
     int fd = open("sbrk.dat", O_CREAT | O_WRONLY, 0666);
     write(fd, &addr, BUFSIZ);
-    close(fd);
 }

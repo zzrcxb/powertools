@@ -20,10 +20,10 @@ void get_fs_base(uint64_t *ret) {
 }
 
 void _gdb_expr() {
-    char buf[BUFSIZ] = {'\0'};
     uint64_t addr = 0;
     get_fs_base(&addr);
-    int fd = open("fs_base.dat", O_CREAT | O_WRONLY, 0666);
-    write(fd, &addr, BUFSIZ);
-    close(fd);
+    FILE* fd = fopen("fs_base.dat", "w+");
+    printf("fs_base = 0x%" PRIx64 "\n", addr);
+    fprintf(fd, "0x%" PRIx64 "\n", addr);
+    fclose(fd);
 }

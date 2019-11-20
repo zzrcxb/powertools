@@ -171,48 +171,103 @@ class GDBEngine:
         return True
 
     def _get_brk_value(self):
-        # ret = gdb.execute('print ((void *(*) (unsigned long)) sbrk)(0)', to_string=True)
-        # brk = int(re.findall('0x[0-9a-fA-F]+', ret)[0], base=16)
-        # print('brk:', hex(brk))
-        # return brk
-        # lang = gdb.execute('show language', to_string=True).split()[-1].split('"')[0]
-        gdb.execute('set language c')
-        brk_c = (Path(__file__).parent / 'get_brk.c').resolve()
-        print(f'compile file -raw {brk_c}')
-        gdb.execute(f'compile file -raw {brk_c}', to_string=True)
-        gdb.execute('set language auto')
+        def method1():
+            ret = gdb.execute('print ((void *(*) (unsigned long)) sbrk)(0)', to_string=True)
+            brk = int(re.findall('0x[0-9a-fA-F]+', ret)[0], base=16)
+            return brk
 
-        brk_file = Path('sbrk.dat')
-        with brk_file.open('rb') as f:
-            brk_val = struct.unpack('Q', f.read()[:8])[0]
-        print('brk:', hex(brk_val))
+        def method2():
+            gdb.execute('set language c')
+            brk_c = (Path(__file__).parent / 'get_brk_glibc.c').resolve()
+            print(f'compile file -raw {brk_c}')
+            gdb.execute(f'compile file -raw {brk_c}', to_string=True)
+            gdb.execute('set language auto')
+
+            brk_file = Path('sbrk.dat')
+            with brk_file.open('r') as f:
+                brk_val = int(f.read(), base=16)
+            return brk_val
+
+        def method3():
+            gdb.execute('set language c')
+            brk_c = (Path(__file__).parent / 'get_brk.c').resolve()
+            brk_c_fallback = (Path(__file__).parent / 'get_brk_noclose.c').resolve()
+
+            try:
+                print(f'compile file -raw {brk_c}')
+                gdb.execute(f'compile file -raw {brk_c}', to_string=True)
+            except gdb.error:
+                logging.warning('Falling back to no close')
+                print(f'compile file -raw {brk_c_fallback}')
+                gdb.execute(f'compile file -raw {brk_c_fallback}', to_string=True)
+
+            gdb.execute('set language auto')
+
+            brk_file = Path('sbrk.dat')
+            with brk_file.open('rb') as f:
+                brk_val = struct.unpack('Q', f.read()[:8])[0]
+            return brk_val
+
+        try:
+            brk_val = method1()
+        except gdb.error:
+            logging.warning('Falling back to method 2')
+            try:
+                brk_val = method2()
+            except gdb.error:
+                logging.warning('Falling back to method 3')
+                brk_val = method3()
+
+        logging.info(f'brk value: {brk_val:#x}')
         return brk_val
 
     def _get_fs_base(self):
-        # lang = gdb.execute('show language', to_string=True).split()[-1].split('"')[0]
-        gdb.execute('set language c')
-        fs_c = (Path(__file__).parent / 'get_fs_base.c').resolve()
-        print(f'compile file -raw {fs_c}')
-        gdb.execute(f'compile file -raw {fs_c}', to_string=True)
-        gdb.execute('set language auto')
+        def method1():
+            gdb.execute('set language c')
+            fs_c = (Path(__file__).parent / 'get_fs_base_glibc.c').resolve()
+            print(f'compile file -raw {fs_c}')
+            gdb.execute(f'compile file -raw {fs_c}', to_string=True)
+            gdb.execute('set language auto')
 
-        fs_file = Path('fs_base.dat')
-        with fs_file.open('rb') as f:
-            fs_base = struct.unpack('Q', f.read()[:8])[0]
-        print('fs:', hex(fs_base))
+            fs_file = Path('fs_base.dat')
+            with fs_file.open('r') as f:
+                fs_base = int(f.read(), base=16)
+            return fs_base
+
+        def method2():
+            gdb.execute('set language c')
+            fs_c = (Path(__file__).parent / 'get_fs_base.c').resolve()
+            fs_c_fallback = (Path(__file__).parent / 'get_fs_base_noclose.c').resolve()
+
+            try:
+                print(f'compile file -raw {fs_c}')
+                gdb.execute(f'compile file -raw {fs_c}', to_string=True)
+            except gdb.error:
+                logging.warning('Falling back to no close')
+                print(f'compile file -raw {fs_c_fallback}')
+                gdb.execute(f'compile file -raw {fs_c_fallback}', to_string=True)
+
+            gdb.execute('set language auto')
+
+            fs_file = Path('fs_base.dat')
+            with fs_file.open('rb') as f:
+                fs_base = struct.unpack('Q', f.read()[:8])[0]
+            return fs_base
+
+        try:
+            fs_base = method1()
+        except gdb.error:
+            logging.warning('Falling back to method 2')
+            fs_base = method2()
+
+        logging.info(f'fs_base: {fs_base:#x}')
         return fs_base
 
     def _get_virtual_addresses(self):
-        # vaddrs  = [0]
-        # sizes   = [resource.getpagesize()]
-        # offsets = [0]
-        # names   = ['null']
         vaddrs  = []
         sizes   = []
         offsets = []
         names   = []
-        # p = subprocess.Popen(['gdb', self.binary, '--batch', '-ex', 'info proc mappings {}'.format(pid)], stdout=subprocess.PIPE)
-        # raw_mappings = p.communicate()[0].decode('utf8')
         raw_mappings = gdb.execute('info proc mappings', to_string=True)
         with open('proc.map', 'w') as f:
             f.write(raw_mappings)
