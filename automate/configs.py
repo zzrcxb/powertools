@@ -13,7 +13,7 @@ class SPEC_CONFIG:
   INPUT_SIZE = 'ref'
   TUNE = 'base'
 
-  COMPILER_CONFIG = 'docker-gcc'
+  COMPILER_CONFIG = 'docker-clang'
 
   _benchmark_suites = {
     'SPEC06': SPEC06_PROGRAMS,

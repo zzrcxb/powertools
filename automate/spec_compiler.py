@@ -83,10 +83,10 @@ class SPECBuilder:
     funcs = [self.fake_run, self.build, self.gen_command]
     for f in funcs:
       if self.has_error:
-        os.chdir(self.cwd)
+        os.chdir(str(self.cwd))
         return
       f()
-    os.chdir(self.cwd)
+    os.chdir(str(self.cwd))
 
   def fake_run(self):
     cmd = [self.config.specrun, '--fake', '--loose', '--size', self.config.INPUT_SIZE, '--tune', self.config.TUNE,
@@ -115,7 +115,7 @@ class SPECBuilder:
       self.has_error = True
 
   def build(self):
-    os.chdir(self.build_dir)
+    os.chdir(str(self.build_dir))
 
     clean_cmd = ['specmake', 'clean']
     if self.spec_name in cmd_map[self.config.version]:
@@ -148,13 +148,13 @@ class SPECBuilder:
     try:
       self.target_path = self.build_dir / self.target_name
       assert(self.target_path.exists())
-      shutil.copy2(self.target_path, self.run_dir / self.target_name)
+      shutil.copy2(str(self.target_path), str(self.run_dir / self.target_name))
     except AssertionError as e:
       logging.error('target doesn\'t exists {}: {}'.format(self.build_dir / self.target_name, self.spec_name))
       self.has_error = True
 
   def gen_command(self):
-    os.chdir(self.run_dir)
+    os.chdir(str(self.run_dir))
     cmd = ['specinvoke', '-n']
     logging.debug('"{cmd}": for {name}\'s command generation'.format(cmd=cmd, name=self.spec_name))
 
@@ -178,13 +178,13 @@ class SPECBuilder:
       self.has_error = True
 
     cmd_splits = cmd.split()  # assume there's no space in the path
-    cmd_splits[0] = './{}'.format(self.target_name)
+    cmd_splits[0] = '{}'.format(self.target_name)
     cmd = ' '.join(cmd_splits)
-    with open(self.run_dir / 'cmd.txt', 'w') as f:
+    with open(str(self.run_dir / 'cmd.txt'), 'w') as f:
       f.write(cmd)
 
     try:
-      shutil.copytree(self.run_dir, self.collection_dir / self.spec_name.split('.')[1])
+      shutil.copytree(str(self.run_dir), str(self.collection_dir / self.spec_name.split('.')[1]))
     except Exception:
       logging.error('Failed to copy results for "{}"'.format(self.spec_name.split('.')[1]))
       self.has_error = True

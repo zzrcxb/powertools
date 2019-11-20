@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import io
+import re
 import sys
 import os
 import time
@@ -93,7 +94,7 @@ def gen_simpt(args):
     for slice_cnt, slice_id in simpts:
       if slice_cnt > 0:
         # important! breakpoint data generated AFTER each slice execution
-        brk_info = brk_data[slice_cnt - 1]
+        brk_info = brk_data[slice_cnt]
         out.write('{} {}'.format(slice_id, brk_info))
       else:
         out.write('{} {}'.format(slice_id, '0 0\n'))
@@ -172,9 +173,10 @@ def gen_ckpt_gdbonly(args):
   import resource
   resource.setrlimit(resource.RLIMIT_CORE, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
   name = args.name
-  log_dir = args.LOG_DIR / 'ckpt'
+  log_dir = args.LOG_DIR / 'ckpt-gdb'
   log_dir.mkdir(parents=True, exist_ok=True)
-  os.chdir(args.RUN_DIR / name)
+  bench_dir = args.RUN_DIR / name
+  os.chdir(bench_dir)
   with open('cmd.txt') as f:
     cmd = f.read()
   infile = None
@@ -186,7 +188,7 @@ def gen_ckpt_gdbonly(args):
   cmd = cmd.split()
   cmd[0] = './' + cmd[0]
   with open(log_dir / 'gdb_{}.out'.format(name), 'wb') as gdb_out , open(log_dir / 'gdb_{}.err'.format(name), 'wb') as gdb_err:
-    run_cmd = ['gdb', '--batch', '-x', str(GDBDRIVER), '--args', cmd]
+    run_cmd = ['gdb', '--batch', '-x', str(GDBONLYDRIVER), '--args'] + cmd
     logging.debug('GDB exec: {}'.format(' '.join(run_cmd)))
     config = {
         'cmd': cmd,
@@ -220,6 +222,9 @@ def gen_path(args):
   assert Path(bench_dir / 'gdb.cmd').exists()
   logging.info('{} finished.'.format(name))
 
+  with open(log_dir / '{}.out'.format(name), 'r') as out:
+    last_line = list(out)[-1]
+  logging.info(f'{name}: {last_line}')
 
 def gen_patches(args):
   for d in args.RUN_DIR.iterdir():
@@ -240,7 +245,7 @@ def gen_patches(args):
   logging.info('finished')
 
 
-IGNORES = {'log', '.git', 'sbs', 'wrf', 'specrand_f', 'specrand_i', }  #'omnetpp', 'gcc', 'calculix', 'mcf'}
+IGNORES = {'blender_r', 'wrf_r', 'cactuBSSN_r', 'x264_r'} # 'log', '.git', 'sbs', 'wrf', 'specrand_f', 'specrand_i', }  #'omnetpp', 'gcc', 'calculix', 'mcf'}
 
 
 def check_ckpt_stauts(args):
@@ -329,6 +334,8 @@ def bbv(args):
       c = f.result()
       if c.returncode:
         raise RuntimeError('Non-zero return value')
+      else:
+        print(c)
     except Exception:
       logging.error('Failed to run {} for {}'.format(sub_arg, fut_map[f]))
 
