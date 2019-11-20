@@ -248,6 +248,13 @@ def gen_patches(args):
 IGNORES = {'blender_r', 'wrf_r', 'cactuBSSN_r', 'x264_r'} # 'log', '.git', 'sbs', 'wrf', 'specrand_f', 'specrand_i', }  #'omnetpp', 'gcc', 'calculix', 'mcf'}
 
 
+def run_all(args):
+  gen_bbv(args)
+  gen_simpt(args)
+  gen_path(args)
+  gen_ckpt_gdbonly(args)
+
+
 def check_ckpt_stauts(args):
   for d in args.RUN_DIR.iterdir():
     if d.name not in IGNORES and d.is_dir():
@@ -322,7 +329,7 @@ def bbv(args):
   with ThreadPoolExecutor(max_workers=args.parallelism) as executor:
     candidates = [d for d in args.RUN_DIR.iterdir() if d.is_dir() and d.name not in IGNORES]
     for cnt, d in enumerate(candidates):
-      if sub_arg == 'simpt-runner':
+      if sub_arg == 'simpt-runner' or subprocess == 'e2e-runner':
         fu = executor.submit(subprocess.run, ['python3', __file__, sub_arg, d.name, '--maxK', str(args.maxK)])
       else:
         fu = executor.submit(subprocess.run, ['python3', __file__, sub_arg, d.name])
@@ -402,6 +409,9 @@ if __name__ == '__main__':
   bbv_parser = subparsers.add_parser('bbv', help='bbv for all')
   bbv_parser.set_defaults(func=bbv, sub='bbv-runner')
 
+  all_parser = subparsers.add_parser('all', help='bbv for all')
+  all_parser.set_defaults(func=bbv, sub='e2e-runner')
+
   ckpt_parser = subparsers.add_parser('simpt', help='simpt for all')
   ckpt_parser.add_argument('--maxK', action='store', type=int, default=20)
   ckpt_parser.set_defaults(func=bbv, sub='simpt-runner')
@@ -421,7 +431,7 @@ if __name__ == '__main__':
 
   simpt_runner_parser = subparsers.add_parser('simpt-runner', help='generate simpoint data for a specific app')
   simpt_runner_parser.add_argument('name', action='store')
-  simpt_runner_parser.add_argument('--maxK', action='store', type=int, default=20)
+  simpt_runner_parser.add_argument('--maxK', action='store', type=int, default=10)
   simpt_runner_parser.set_defaults(func=gen_simpt)
 
   ckpt_runner_parser = subparsers.add_parser('ckpt-runner', help='generate checkpoint for a specific app')
@@ -444,6 +454,11 @@ if __name__ == '__main__':
 
   patch_gen_parser = subparsers.add_parser('gen-patches', help='patch all binares')
   patch_gen_parser.set_defaults(func=gen_patches)
+
+  e2e_runner_parser = subparsers.add_parser('e2e-runner', help='generate simpoint data for a specific app')
+  e2e_runner_parser.add_argument('name', action='store')
+  e2e_runner_parser.add_argument('--maxK', action='store', type=int, default=10)
+  e2e_runner_parser.set_defaults(func=run_all)
 
   args = parser.parse_args()
   args.RUN_DIR  = Path(Path(args.cwd) / 'run').resolve()
