@@ -15,9 +15,6 @@ Python dependencies are listed in the tool's `requirements.txt`
 `pip3 install -r lapi-plus/requirements.txt --user` or
 `sudo pip3 install -r lapi-plus/requirements.txt`
 
-## For CentOS users
-Why are you using CentOS???
-
 ## Attention
 Based on my observation, when GDB executes a Python script, it ignores the virtual environment. So, please install Python dependencies to the environment without virtualenv. Maybe there's a way to tell GDB to use virtualenv...
 
