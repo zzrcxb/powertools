@@ -19,13 +19,14 @@ from concurrent.futures import ThreadPoolExecutor
 RUN_DIR = None
 CKPT_PATH = None
 PIN_ROOT = Path(os.getenv('PIN_ROOT'))
-BBV_PATH = '/home/neil/powertools/inscount/obj-intel64/bbv.so'
-BRKPT_PATH = '/home/neil/powertools/inscount/obj-intel64/brkpt.so'
-GDBDRIVER = '/home/neil/powertools/lapi-plus/GDBDriver.py'
-GDBONLYDRIVER = '/home/neil/powertools/lapi-plus/GDBOnly.py'
-SIMPT_PATH = '/home/neil/Simpoint3.2/bin/simpoint'
-PATHFINDER = '/home/neil/powertools/inscount/gdb_gen.py'
-PATCHER_PATH = Path(__file__).parent / 'patch.py'
+HOME = Path(os.getenv('HOME'))
+BBV_PATH      = HOME / 'powertools/inscount/obj-intel64/bbv.so'
+BRKPT_PATH    = HOME / 'powertools/inscount/obj-intel64/brkpt.so'
+GDBDRIVER     = HOME / 'powertools/lapi-plus/GDBDriver.py'
+GDBONLYDRIVER = HOME / 'powertools/lapi-plus/GDBOnly.py'
+SIMPT_PATH    = HOME / 'Simpoint3.2/bin/simpoint'
+PATHFINDER    = HOME / 'powertools/inscount/gdb_gen.py'
+PATCHER_PATH  = Path(__file__).parent / 'patch.py'
 
 
 def gen_bbv(args):
@@ -71,7 +72,7 @@ def gen_simpt(args):
   os.chdir(bench_dir)
 
   with open(log_dir / '{}.out'.format(name), 'wb') as out , open(log_dir / '{}.err'.format(name), 'wb') as err:
-    run_cmd = [SIMPT_PATH, '-loadFVFile', 'out.bb', '-maxK', str(args.maxK), '-saveSimpoints', 'results.simpts', '-saveSimpointWeights', 'results.weights']
+    run_cmd = [str(SIMPT_PATH), '-loadFVFile', 'out.bb', '-maxK', str(args.maxK), '-saveSimpoints', 'results.simpts', '-saveSimpointWeights', 'results.weights']
     logging.debug('Exec: {}'.format(' '.join(run_cmd)))
     p = subprocess.Popen(run_cmd, stdout=out, stderr=err)
     p.communicate()
@@ -214,7 +215,7 @@ def gen_path(args):
 
   os.chdir(bench_dir)
   with open(log_dir / '{}.out'.format(name), 'wb') as out , open(log_dir / '{}.err'.format(name), 'wb') as err:
-    run_cmd = [PATHFINDER]
+    run_cmd = [str(PATHFINDER)]
     logging.debug('Exec: {}'.format(' '.join(run_cmd)))
     p = subprocess.Popen(run_cmd, stdout=out, stderr=err)
     p.communicate()
@@ -410,10 +411,11 @@ if __name__ == '__main__':
   bbv_parser.set_defaults(func=bbv, sub='bbv-runner')
 
   all_parser = subparsers.add_parser('all', help='bbv for all')
+  all_parser.add_argument('--maxK', action='store', type=int, default=10)
   all_parser.set_defaults(func=bbv, sub='e2e-runner')
 
   ckpt_parser = subparsers.add_parser('simpt', help='simpt for all')
-  ckpt_parser.add_argument('--maxK', action='store', type=int, default=20)
+  ckpt_parser.add_argument('--maxK', action='store', type=int, default=10)
   ckpt_parser.set_defaults(func=bbv, sub='simpt-runner')
 
   ckpt_parser = subparsers.add_parser('ckpt', help='ckpt for all')
