@@ -27,6 +27,7 @@ if __name__ == '__main__':
 
   def path(s):
     p = Path(s)
+    print(p, p.exists(), p.is_dir())
     assert(p.exists() and p.is_dir())
     return p
 

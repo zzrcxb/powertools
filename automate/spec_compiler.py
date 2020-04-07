@@ -36,7 +36,8 @@ cmd_map = {
 class SPECBuilder:
   def __init__(self, spec_name, spec_config: SPEC_CONFIG, collection_dir: Path, log_dir=''):
     self.spec_name = spec_name
-    self.target_name = target_name_map[spec_config.version].get(self.spec_name, spec_name.split('.')[1])
+    self.benchmark = self.spec_name.split('.')[1]
+    self.target_name = target_name_map[spec_config.version].get(self.spec_name, self.benchmark)
     self.config = spec_config
     self.collection_dir = collection_dir
     if log_dir:
@@ -80,6 +81,9 @@ class SPECBuilder:
                                       error_msg_empty, error_msg_multiple)
 
   def run(self):
+    if os.path.exists(self.collection_dir / self.benchmark):
+      return
+
     funcs = [self.fake_run, self.build, self.gen_command]
     for f in funcs:
       if self.has_error:
@@ -148,7 +152,7 @@ class SPECBuilder:
     try:
       self.target_path = self.build_dir / self.target_name
       assert(self.target_path.exists())
-      shutil.copy2(str(self.target_path), str(self.run_dir / self.target_name))
+      shutil.copy2(str(self.target_path), str(self.run_dir / self.benchmark))
     except AssertionError as e:
       logging.error('target doesn\'t exists {}: {}'.format(self.build_dir / self.target_name, self.spec_name))
       self.has_error = True
@@ -178,7 +182,7 @@ class SPECBuilder:
       self.has_error = True
 
     cmd_splits = cmd.split()  # assume there's no space in the path
-    cmd_splits[0] = '{}'.format(self.target_name)
+    cmd_splits[0] = '{}'.format(self.benchmark)
     cmd = ' '.join(cmd_splits)
     with open(str(self.run_dir / 'cmd.txt'), 'w') as f:
       f.write(cmd)

@@ -13,7 +13,7 @@ class SPEC_CONFIG:
   INPUT_SIZE = 'ref'
   TUNE = 'base'
 
-  COMPILER_CONFIG = 'docker-clang'
+  COMPILER_CONFIG = 'clang'
 
   _benchmark_suites = {
     'SPEC06': SPEC06_PROGRAMS,
@@ -70,19 +70,3 @@ class SIMPOINT_CONFIG:
 class LAPI_CONFIG:
   ROOT_DIR = Path(os.getenv('LAPI', ''))
   PORT_FILE = '.portinfo'
-
-# SPEC_ROOT = "/root/spec"
-# SPEC_BENCH_ROOT = os.path.join(SPEC_ROOT, "benchspec/CPU2006")
-# SPEC_CONFIG = "linux64-clang-fence"
-# RUN_ROOT = "/home/neil/Archive/run-fence"
-# RUN_ROOT_DOCKER = "/root/run"
-
-# PIN_ROOT = "/home/neil/pin-3.7"
-# DIAMOND_SCRIPT = "/home/neil/diamond/bin_ana/run.py -S0"
-# DIAMOND_COUNTER = "/home/neil/diamond/bin_ana/count_res.py"
-
-# IF_SPEC_LOG = True
-# SPEC_LOG_DIR = "/root/spec_log"
-
-# IS_PIN_LOG = True
-# PIN_LOG_DIR = "/home/neil/run/pin_log"
