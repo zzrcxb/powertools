@@ -20,13 +20,15 @@ RUN_DIR = None
 CKPT_PATH = None
 PIN_ROOT = Path(os.getenv('PIN_ROOT'))
 HOME = Path(os.getenv('HOME'))
-BBV_PATH      = HOME / 'powertools/inscount/obj-intel64/bbv.so'
-BRKPT_PATH    = HOME / 'powertools/inscount/obj-intel64/brkpt.so'
-GDBDRIVER     = HOME / 'powertools/lapi-plus/GDBDriver.py'
-GDBONLYDRIVER = HOME / 'powertools/lapi-plus/GDBOnly.py'
-SIMPT_PATH    = HOME / 'Simpoint3.2/bin/simpoint'
-PATHFINDER    = HOME / 'powertools/inscount/gdb_gen.py'
-PATCHER_PATH  = Path(__file__).parent / 'patch.py'
+BBV_PATH       = HOME / 'powertools/inscount/obj-intel64/bbv.so'
+BRKPT_PATH     = HOME / 'powertools/inscount/obj-intel64/brkpt.so'
+GDBDRIVER      = HOME / 'powertools/lapi-plus/GDBDriver.py'
+GDBONLYDRIVER  = HOME / 'powertools/lapi-plus/GDBOnly.py'
+SIMPT_PATH     = HOME / 'Simpoint3.2/bin/simpoint'
+PATHFINDER     = HOME / 'powertools/inscount/gdb_gen.py'
+RECORDER_PATH  = HOME / 'powertools/inscount/obj-intel64/recorder.so'
+CONVERTER_PATH = HOME / 'powertools/inscount/recorder.py'
+PATCHER_PATH   = Path(__file__).parent / 'patch.py'
 
 
 def gen_bbv(args):
@@ -102,6 +104,47 @@ def gen_simpt(args):
 
   assert(pin_break.exists())
   logging.info('{} finished.'.format(name))
+
+
+def gen_pin_ckpt(args):
+  name = args.name
+  log_dir = args.LOG_DIR / 'recorder'
+  log_dir.mkdir(parents=True, exist_ok=True)
+  ckpt_path = Path(args.CKPT_DIR) / name
+
+  os.chdir(args.RUN_DIR / name)
+
+  with open('cmd.txt') as f:
+    cmd = f.read()
+  infile = None
+  cmd = cmd.strip().split('>')[0]
+  splitted = cmd.split('<')
+  if len(splitted) == 2:
+    cmd, infile = splitted
+    infile = open(infile.strip(), 'rb')
+  cmd = cmd.split()
+  cmd[0] = './' + cmd[0]
+  with open(log_dir / '{}_recorder.out'.format(name), 'wb') as pin_out , open(log_dir / '{}_recorder.err'.format(name), 'wb') as pin_err:
+    run_cmd = [str(PIN_ROOT / 'pin'), '-t', str(RECORDER_PATH), '-c', str(ckpt_path), '--'] + cmd
+    logging.debug('Pin exec: {}'.format(' '.join(run_cmd)))
+
+    pin_proc = subprocess.Popen(run_cmd, stdin=infile, stdout=pin_out, stderr=pin_err)
+    pin_proc.communicate()
+  if (pin_proc.returncode):
+    logging.error('Recorder error, {}'.format(name))
+    raise RuntimeError('Recorder error')
+
+  for idx, d in enumerate(ckpt_path.iterdir()):
+    if d.name.startswith('cpt.None.SIMP-'):
+      os.chdir(d)
+      with open(log_dir / '{}_converter.out'.format(name), 'wb') as cvt_out , open(log_dir / '{}_converter.err'.format(name), 'wb') as cvt_err:
+        run_cmd = [str(CONVERTER_PATH), '.', 'convert']
+        logging.debug('Converter exec: {}; for simpt #{}'.format(' '.join(run_cmd), idx))
+        cvt_proc = subprocess.Popen(run_cmd, stdout=cvt_out, stderr=cvt_err)
+        cvt_proc.communicate()
+        if (cvt_proc.returncode):
+          logging.error('Converter error, {} simpt# {}'.format(name, idx))
+          raise RuntimeError('Converter error')
 
 
 def gen_ckpt(args):
@@ -232,8 +275,8 @@ def gen_patches(args):
     if d.name not in IGNORES and d.is_dir():
       with open(d / 'cmd.txt') as f:
         name = f.read().split()[0]
-      executable = d / name
-      backup = d / (name + '.bak')
+      executable = d / d.name
+      backup = d / (d.name + '.bak')
 
       if not backup.exists():
         shutil.copy2(executable, backup)
@@ -246,7 +289,7 @@ def gen_patches(args):
   logging.info('finished')
 
 
-IGNORES = {'blender_r', 'wrf_r', 'cactuBSSN_r', 'x264_r'} # 'log', '.git', 'sbs', 'wrf', 'specrand_f', 'specrand_i', }  #'omnetpp', 'gcc', 'calculix', 'mcf'}
+IGNORES = {}
 
 
 def run_all(args):
@@ -271,7 +314,7 @@ def check_ckpt_stauts(args):
         print(f'[-] {d.name:>20}: missing {num_expectation - num_exists} checkpoints')
         continue
 
-      corrupted = False
+      corrupted = 0
       for ckpt in ckpt_path.iterdir():
         cpt = ckpt / 'm5.cpt'
         pmem = ckpt / 'system.physmem.store0.pmem'
@@ -279,11 +322,12 @@ def check_ckpt_stauts(args):
           assert(cpt.exists())
           assert(pmem.exists())
         except AssertionError:
-          print(f'[\u2717] {d.name:>20}: corrupted checkpoint {ckpt.name}')
-          corrupted = True
+          corrupted += 1
 
       if not corrupted:
         print(f'[\u2713] {d.name:>20}: clean!')
+      else:
+        print(f'[\u2717] {d.name:>20}: corrupted checkpoint {ckpt.name}: {corrupted}')
 
 
 def gen_cmds(args):
@@ -424,6 +468,9 @@ if __name__ == '__main__':
   gdbonly_parser = subparsers.add_parser('gdbonly', help='ckpt-gdbonly for all')
   gdbonly_parser.set_defaults(func=bbv, sub='gdbonly-runner')
 
+  recorder_parser = subparsers.add_parser('recorder', help='ckpt-recorder for all')
+  recorder_parser.set_defaults(func=bbv, sub='recorder-runner')
+
   path_parser = subparsers.add_parser('path', help='path for all')
   path_parser.set_defaults(func=bbv, sub='path-runner')
 
@@ -447,6 +494,10 @@ if __name__ == '__main__':
   gdbonly_runner_parser = subparsers.add_parser('gdbonly-runner', help='generate gdb path for a specific app')
   gdbonly_runner_parser.add_argument('name', action='store')
   gdbonly_runner_parser.set_defaults(func=gen_ckpt_gdbonly)
+
+  recorder_runner_parser = subparsers.add_parser('recorder-runner', help='Use recorder to generate checkpoints')
+  recorder_runner_parser.add_argument('name', action='store')
+  recorder_runner_parser.set_defaults(func=gen_pin_ckpt)
 
   ckpt_status_parser = subparsers.add_parser('ckpt-status', help='check all checkpoint generation status')
   ckpt_status_parser.set_defaults(func=check_ckpt_stauts)

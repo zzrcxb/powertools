@@ -30,8 +30,8 @@
 #define RESET    "\033[0m"
 
 #define ZDEBUG "[\033[34mDEBUG\033[0m] "
-#define ZINFO  "[\033[32mINFO\033[0m] "
-#define ZWARN  "[\033[33mWARN\033[0m] "
+#define ZINFO  "[\033[32m INFO\033[0m] "
+#define ZWARN  "[\033[33m WARN\033[0m] "
 #define ZERROR "[\033[31mERROR\033[0m] "
 
 #endif

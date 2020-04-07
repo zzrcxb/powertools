@@ -15,11 +15,13 @@ typedef pair<uint64_t, uint64_t> Record;
 
 unordered_map<Addr, uint64_t> BBCounter;
 unordered_map<Addr, uint64_t> BBDelta;
+unordered_map<Addr, uint64_t> BBSizes;
 unordered_map<Addr, uint64_t> nameTab;
 
 uint64_t BBid = 1;
 uint64_t icounter = 0, oldicounter = 0;
-uint64_t SKIP, INTERVAL;
+uint64_t SKIP, INTERVAL, WARMUP;
+bool brp_saved = false;
 
 vector<vector<Record>> bbv_data;
 vector<Record> brp_data;
@@ -40,6 +42,9 @@ KNOB<string> KnobRunDir(KNOB_MODE_WRITEONCE, "pintool",
 KNOB<UINT64> KnobInterval(KNOB_MODE_WRITEONCE, "pintool",
               "i", "50", "interval for each program slice (unit: M instructions)!");
 
+KNOB<UINT64> KnobWarmup(KNOB_MODE_WRITEONCE, "pintool",
+              "w", "1000000", "Use <w> instructions for warmup");
+
 KNOB<UINT64> KnobSkip(KNOB_MODE_WRITEONCE, "pintool",
               "s", "0", "skip first <s> instructions");
 
@@ -56,22 +61,27 @@ inline void dump(Addr pc) {
   for (auto p : BBDelta) {
     auto thepc = p.first;
     auto thedelta = p.second;
-    BBCounter[thepc] += thedelta;
     if (thedelta) {
-      bbv_line.emplace_back(make_pair(nameTab[thepc], thedelta));
+      bbv_line.emplace_back(make_pair(nameTab[thepc], thedelta * BBSizes[thepc]));
     }
     BBDelta[thepc] = 0;
   }
   bbv_data.emplace_back(bbv_line);
-  brp_data.emplace_back(make_pair(pc, BBCounter[pc]));
+  brp_saved = false;
 }
 
 
 void docount(Addr pc, USIZE size) {
   icounter += size;
   BBDelta[pc] += 1;
+  BBCounter[pc] += 1;
   if ((icounter - oldicounter) > INTERVAL && icounter > SKIP)
     dump(pc);
+
+  if ((icounter - oldicounter) > INTERVAL - 1000000 && icounter > SKIP && !brp_saved) {
+    brp_data.emplace_back(make_pair(pc, BBCounter[pc]));
+    brp_saved = true;
+  }
 }
 
 
@@ -81,6 +91,7 @@ void BBTrace(TRACE trace, void *v) {
     BBL_InsertCall(bbl, IPOINT_BEFORE, (AFUNPTR)docount, IARG_UINT64, pc, IARG_UINT32, BBL_NumIns(bbl), IARG_END);
     BBCounter.insert(make_pair(pc, 0));
     BBDelta.insert(make_pair(pc, 0));
+    BBSizes.insert(make_pair(pc, BBL_NumIns(bbl)));
     nameTab.insert(make_pair(pc, BBid++));
   }
 }
@@ -112,7 +123,10 @@ void Fini(INT32 code, void *v) {
     bbid_out << p.second << " 0x"
              << hex
              << p.first
-             << dec << endl;
+             << dec
+             << " "
+             << BBSizes[p.first]
+             << endl;
   }
 
   bbv_out.close();
@@ -128,6 +142,7 @@ int main(int argc, char **argv) {
 
   SKIP = KnobSkip.Value();
   INTERVAL = KnobInterval.Value() * 1000000;
+  WARMUP = KnobWarmup.Value();
 
   string bbv_out_path = KnobRunDir.Value() + "/" + KnobOutputBBVFile.Value();
   string brk_out_path = KnobRunDir.Value() + "/" + KnobOutputBRKFile.Value();
@@ -144,7 +159,8 @@ int main(int argc, char **argv) {
 
   cerr << ZINFO
        << "skip first: " << SKIP << " insn" << "\t"
-       << "interval: " << INTERVAL << " insn" << endl;
+       << "interval: " << INTERVAL << " insn"
+       << "warmup: " << WARMUP << endl;
 
   TRACE_AddInstrumentFunction(BBTrace, nullptr);
   PIN_AddFiniFunction(Fini, nullptr);
